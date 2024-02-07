@@ -36,19 +36,19 @@ lab:
 
 1. **Databases** フォルダーを選択し、**[新しいクエリ]** を選択します。
 
-1. 次の T-SQL をコピーして、新しいクエリ ウィンドウに貼り付けます。 クエリを実行してデータベースを復元します。
+1. 次の T-SQL をコピーして、新しいクエリ ウィンドウに貼り付けます。 データベース バックアップ ファイルの名前とパスが実際のバックアップ ファイルと一致していることを確認します。 していない場合、コマンドは失敗します。 クエリを実行してデータベースを復元します。
 
     ```sql
     RESTORE DATABASE AdventureWorksLT
-    FROM DISK = 'C:\LabFiles\AdventureWorksLT2019.bak'
+    FROM DISK = 'C:\<FolderName>\AdventureWorksLT2019.bak'
     WITH RECOVERY,
           MOVE 'AdventureWorksLT2019_Data' 
-            TO 'C:\LabFiles\AdventureWorksLT2019.mdf',
+            TO 'C:\<FolderName>\AdventureWorksLT2019.mdf',
           MOVE 'AdventureWorksLT2019_Log'
-            TO 'C:\LabFiles\AdventureWorksLT2019.ldf';
+            TO 'C:\<FolderName>\AdventureWorksLT2019.ldf';
     ```
 
-    > **注**: 上記の例のデータベース バックアップ ファイルの名前とパスが実際のバックアップ ファイルと一致していることを確認します。 そうでない場合は、コマンドが失敗する可能性があります。
+    > **注**:T-SQL コマンドを実行する前に、SQL Server マシンに軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure#download-backup-files) バックアップ ファイルがあることを確認してください。
 
 1. 復元が完了すると、成功メッセージが表示されます。
 
