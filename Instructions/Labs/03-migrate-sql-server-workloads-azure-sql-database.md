@@ -5,7 +5,9 @@ lab:
 
 # SQL Server データベースを Azure SQL Database に移行する
 
-この演習では、Azure Data Studio 用の Azure 移行拡張機能を使用して、SQL Server データベースを Azure SQL Database に移行する方法について説明します。 まず、Azure Data Studio 用の Azure 移行拡張機能をインストールして起動します。 次に、SQL Server データベースから Azure SQL Database へのオフライン移行を実行します。 また、Azure portal で移行プロセスを監視する方法についても説明します。
+この演習では、Azure Data Studio 用の Azure 移行拡張機能を使って、SQL Server データベースの特定のテーブルを Azure SQL Database に移行する方法を学びます。 
+
+> **重要**: 移行の所要時間に影響を与えないよう (ネットワークと接続の制約の影響を受ける可能性があります)、例として少数のテーブル (*Customer*、*ProductCategory*、*Product*、*Address*) のみを移行します。 必要に応じて、同じプロセスを使ってスキーマ全体を移行できます。
 
 この演習は約 **45** 分かかります。
 
@@ -144,14 +146,214 @@ Azure 移行拡張機能の使用を開始する前に、ターゲット デー�
 1. Azure 移行拡張機能を起動するには、SQL Server インスタンス名を右クリックし、**[管理]** を選択して、Azure SQL 移行拡張機能のダッシュボードとランディング ページにアクセスします。
 
     > **注**: **Azure SQL 移行**がサーバー ダッシュボードのサイド バーに表示されない場合は、Azure Data Studio をもう一度開きます。
- 
+
+## ターゲット スキーマを作成する
+
+データの移行を始める前に、ターゲット テーブルのスキーマを手動で作成してみましょう。 
+
+1. Azure Data Studio で、お使いの Azure SQL Database に接続します。
+
+1. *AdventureWorksLT* データベースを右クリックし、**[新しいクエリ]** を選択します。
+
+1. 次の T-SQL スクリプトをコピーして貼り付け、移行するテーブルのスキーマを作成します。
+
+    ```sql
+        CREATE SCHEMA [SalesLT]
+        GO
+        
+        CREATE TYPE [dbo].[Name] FROM [nvarchar](50) NULL
+        GO
+        
+        CREATE TYPE [dbo].[NameStyle] FROM [bit] NOT NULL
+        GO
+        
+        CREATE TYPE [dbo].[Phone] FROM [nvarchar](25) NULL
+        GO
+        
+        CREATE TABLE [SalesLT].[Address](
+            [AddressID] [int] IDENTITY(1,1) NOT FOR REPLICATION NOT NULL,
+            [AddressLine1] [nvarchar](60) NOT NULL,
+            [AddressLine2] [nvarchar](60) NULL,
+            [City] [nvarchar](30) NOT NULL,
+            [StateProvince] [dbo].[Name] NOT NULL,
+            [CountryRegion] [dbo].[Name] NOT NULL,
+            [PostalCode] [nvarchar](15) NOT NULL,
+            [rowguid] [uniqueidentifier] ROWGUIDCOL  NOT NULL,
+            [ModifiedDate] [datetime] NOT NULL,
+         CONSTRAINT [PK_Address_AddressID] PRIMARY KEY CLUSTERED 
+        (
+            [AddressID] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_Address_rowguid] UNIQUE NONCLUSTERED 
+        (
+            [rowguid] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+        ) ON [PRIMARY]
+        GO
+        
+        CREATE TABLE [SalesLT].[Customer](
+            [CustomerID] [int] IDENTITY(1,1) NOT FOR REPLICATION NOT NULL,
+            [NameStyle] [dbo].[NameStyle] NOT NULL,
+            [Title] [nvarchar](8) NULL,
+            [FirstName] [dbo].[Name] NOT NULL,
+            [MiddleName] [dbo].[Name] NULL,
+            [LastName] [dbo].[Name] NOT NULL,
+            [Suffix] [nvarchar](10) NULL,
+            [CompanyName] [nvarchar](128) NULL,
+            [SalesPerson] [nvarchar](256) NULL,
+            [EmailAddress] [nvarchar](50) NULL,
+            [Phone] [dbo].[Phone] NULL,
+            [PasswordHash] [varchar](128) NOT NULL,
+            [PasswordSalt] [varchar](10) NOT NULL,
+            [rowguid] [uniqueidentifier] ROWGUIDCOL  NOT NULL,
+            [ModifiedDate] [datetime] NOT NULL,
+         CONSTRAINT [PK_Customer_CustomerID] PRIMARY KEY CLUSTERED 
+        (
+            [CustomerID] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_Customer_rowguid] UNIQUE NONCLUSTERED 
+        (
+            [rowguid] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+        ) ON [PRIMARY]
+        GO
+        
+        CREATE TABLE [SalesLT].[Product](
+            [ProductID] [int] IDENTITY(1,1) NOT NULL,
+            [Name] [dbo].[Name] NOT NULL,
+            [ProductNumber] [nvarchar](25) NOT NULL,
+            [Color] [nvarchar](15) NULL,
+            [StandardCost] [money] NOT NULL,
+            [ListPrice] [money] NOT NULL,
+            [Size] [nvarchar](5) NULL,
+            [Weight] [decimal](8, 2) NULL,
+            [ProductCategoryID] [int] NULL,
+            [ProductModelID] [int] NULL,
+            [SellStartDate] [datetime] NOT NULL,
+            [SellEndDate] [datetime] NULL,
+            [DiscontinuedDate] [datetime] NULL,
+            [ThumbNailPhoto] [varbinary](max) NULL,
+            [ThumbnailPhotoFileName] [nvarchar](50) NULL,
+            [rowguid] [uniqueidentifier] ROWGUIDCOL  NOT NULL,
+            [ModifiedDate] [datetime] NOT NULL,
+         CONSTRAINT [PK_Product_ProductID] PRIMARY KEY CLUSTERED 
+        (
+            [ProductID] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_Product_Name] UNIQUE NONCLUSTERED 
+        (
+            [Name] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_Product_ProductNumber] UNIQUE NONCLUSTERED 
+        (
+            [ProductNumber] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_Product_rowguid] UNIQUE NONCLUSTERED 
+        (
+            [rowguid] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+        ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+        GO
+        
+        CREATE TABLE [SalesLT].[ProductCategory](
+            [ProductCategoryID] [int] IDENTITY(1,1) NOT NULL,
+            [ParentProductCategoryID] [int] NULL,
+            [Name] [dbo].[Name] NOT NULL,
+            [rowguid] [uniqueidentifier] ROWGUIDCOL  NOT NULL,
+            [ModifiedDate] [datetime] NOT NULL,
+         CONSTRAINT [PK_ProductCategory_ProductCategoryID] PRIMARY KEY CLUSTERED 
+        (
+            [ProductCategoryID] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_ProductCategory_Name] UNIQUE NONCLUSTERED 
+        (
+            [Name] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+         CONSTRAINT [AK_ProductCategory_rowguid] UNIQUE NONCLUSTERED 
+        (
+            [rowguid] ASC
+        )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+        ) ON [PRIMARY]
+        GO
+        
+        ALTER TABLE [SalesLT].[Address] ADD  CONSTRAINT [DF_Address_rowguid]  DEFAULT (newid()) FOR [rowguid]
+        GO
+        
+        ALTER TABLE [SalesLT].[Address] ADD  CONSTRAINT [DF_Address_ModifiedDate]  DEFAULT (getdate()) FOR [ModifiedDate]
+        GO
+        
+        ALTER TABLE [SalesLT].[Customer] ADD  CONSTRAINT [DF_Customer_NameStyle]  DEFAULT ((0)) FOR [NameStyle]
+        GO
+        
+        ALTER TABLE [SalesLT].[Customer] ADD  CONSTRAINT [DF_Customer_rowguid]  DEFAULT (newid()) FOR [rowguid]
+        GO
+        
+        ALTER TABLE [SalesLT].[Customer] ADD  CONSTRAINT [DF_Customer_ModifiedDate]  DEFAULT (getdate()) FOR [ModifiedDate]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] ADD  CONSTRAINT [DF_Product_rowguid]  DEFAULT (newid()) FOR [rowguid]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] ADD  CONSTRAINT [DF_Product_ModifiedDate]  DEFAULT (getdate()) FOR [ModifiedDate]
+        GO
+        
+        ALTER TABLE [SalesLT].[ProductCategory] ADD  CONSTRAINT [DF_ProductCategory_rowguid]  DEFAULT (newid()) FOR [rowguid]
+        GO
+        
+        ALTER TABLE [SalesLT].[ProductCategory] ADD  CONSTRAINT [DF_ProductCategory_ModifiedDate]  DEFAULT (getdate()) FOR [ModifiedDate]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product]  WITH CHECK ADD  CONSTRAINT [FK_Product_ProductCategory_ProductCategoryID] FOREIGN KEY([ProductCategoryID])
+        REFERENCES [SalesLT].[ProductCategory] ([ProductCategoryID])
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] CHECK CONSTRAINT [FK_Product_ProductCategory_ProductCategoryID]
+        GO
+        
+        ALTER TABLE [SalesLT].[ProductCategory]  WITH CHECK ADD  CONSTRAINT [FK_ProductCategory_ProductCategory_ParentProductCategoryID_ProductCategoryID] FOREIGN KEY([ParentProductCategoryID])
+        REFERENCES [SalesLT].[ProductCategory] ([ProductCategoryID])
+        GO
+        
+        ALTER TABLE [SalesLT].[ProductCategory] CHECK CONSTRAINT [FK_ProductCategory_ProductCategory_ParentProductCategoryID_ProductCategoryID]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product]  WITH NOCHECK ADD  CONSTRAINT [CK_Product_ListPrice] CHECK  (([ListPrice]>=(0.00)))
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] CHECK CONSTRAINT [CK_Product_ListPrice]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product]  WITH NOCHECK ADD  CONSTRAINT [CK_Product_SellEndDate] CHECK  (([SellEndDate]>=[SellStartDate] OR [SellEndDate] IS NULL))
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] CHECK CONSTRAINT [CK_Product_SellEndDate]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product]  WITH NOCHECK ADD  CONSTRAINT [CK_Product_StandardCost] CHECK  (([StandardCost]>=(0.00)))
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] CHECK CONSTRAINT [CK_Product_StandardCost]
+        GO
+        
+        ALTER TABLE [SalesLT].[Product]  WITH NOCHECK ADD  CONSTRAINT [CK_Product_Weight] CHECK  (([Weight]>(0.00)))
+        GO
+        
+        ALTER TABLE [SalesLT].[Product] CHECK CONSTRAINT [CK_Product_Weight]
+        GO
+        
+    ```
+
+1. **F5** キーを押すか、**[実行]** をクリックして、スクリプト実行します。
+
+1. データベース エクスプローラーで **Tables** フォルダーを展開して、テーブルが正常に作成されたことを確認します。
+
 ## SQL Server データベースから Azure SQL Database へのオフライン移行を実行する
 
 これで、データを移行する準備ができました。 Azure Data Studio を使用してオフライン移行を実行するには、次の手順に従います。
 
 1. Azure Data Studio の拡張機能で **Azure SQL への移行**ウィザードを起動し、**[Azure SQL への移行]** を選択します。
 
-1. **[手順 1: 評価用データベース]** で、*AdventureWorksLT* データベースを選択した後、**[次へ]** を選択します。
+1. **[手順 1: 評価データベース]** の *[Azure portal で移行プロセスを追跡しますか?]* で **[いいえ]** を選んでから、*AdventureWorksLT* データベースを選びます。 [**次へ**] を選択します。
 
 1. **[手順 2: 評価の概要と SKU の推奨事項]** で、評価が完了するまで待ち、結果を確認します。 [**次へ**] を選択します。
 
@@ -161,21 +363,27 @@ Azure 移行拡張機能の使用を開始する前に、ターゲット デー�
 
 1. **[接続]** を選択した後、**[ターゲット データベース]** として *AdventureWorksLT* データベースを選択します。 [**次へ**] を選択します。
 
-1. **[手順 5:Azure Database Migration Service]** で、**[新規作成]** リンクを選び、ウィザードを使用して新しい Azure Database Migration Service を作成します。 ウィザードで提供される手順に従って、新しいセルフホステッド統合ランタイムを設定します。 以前に作成してある場合は、再利用できます。
+1. **[手順 5:Azure Database Migration Service]** で、**[新規作成]** リンクを選び、ウィザードを使用して新しい Azure Database Migration Service を作成します。 ウィザードで提供される **[手動で構成する]** の手順に従って、セルフホステッド統合ランタイムを設定します。 以前に作成してある場合は、再利用できます。
 
 1. **[手順 6:データ ソースの構成]** で、セルフホステッド統合ランタイムから SQL Server インスタンスに接続するための資格情報を入力します。
 
-1. *AdventureWorksLT* データベースの **[編集]** を選択します。 
+1. AdventureWorksLT データベースの *[テーブルの選択]* 列で **[編集]** を選びます。
 
-1. **[スキーマをターゲットに移行]** オプションのチェックをオンにし、**[ターゲット上で不足]** タブのすべてのテーブルが選択されていることを確認します。 **[更新]** を選択します。
+1. **[スキーマをターゲットに移行する]** オプションをオフにします (スキーマは手動で既に作成してあるため)。
+
+1. **[ターゲットで利用可能]** タブでは、移行の準備ができているテーブルが 4 つあることが示されています。
+     - **SalesLT.Customer**
+     - **SalesLT.ProductCategory** 
+     - **SalesLT.Product**
+     - **SalesLT.Address**
+
+1. **[更新]** を選んで、テーブルの選択を保存します。
 
 1. **[検証の実行]** を選択します。
 
     ![Azure Data Studio 用の Azure 移行拡張機能の検証手順実行のスクリーンショット。](../media/3-run-validation.png) 
 
-1. 検証が完了したら、**[完了]** を選択します。
-
-1. [**次へ**] を選択します。
+1. 検証が完了したら、**[完了]** を選んでから **[次へ]** を選びます。
 
 1. **[手順 7:概要]** で、**[移行の開始]** を選びます。
 
@@ -187,9 +395,22 @@ Azure 移行拡張機能の使用を開始する前に、ターゲット デー�
 
     ![Azure Data Studio 用の Azure 移行拡張機能の移行詳細のスクリーンショット。](../media/3-dashboard-sqldb.png)
 
-1. 状態が **[成功]** になったら、ターゲット サーバーに移動し、ターゲット データベースを検証します。 データベース スキーマと移行したデータを確認します。
+1. 状態が **[成功]** になったら、ターゲット サーバーに移動し、ターゲット データベースを検証します。 
 
-移行拡張機能をインストールし、Data Migration Assistant を使用してデータベースのスキーマを生成する方法を説明しました。 また、Azure Data Studio 用の Azure 移行拡張機能を使用して、SQL Server データベースを Azure SQL Database に移行する方法についても説明しました。 移行が完了したら、新しい Azure SQL Database リソースの使用を開始できます。 
+1. 次のクエリを実行して、データの移行が成功したことを確認します。
+
+    ```sql
+    -- Check row counts for migrated data
+    SELECT 'Customer' AS TableName, COUNT(*) AS [RowCount] FROM [SalesLT].[Customer]
+    UNION ALL
+    SELECT 'ProductCategory' AS TableName, COUNT(*) AS [RowCount] FROM [SalesLT].[ProductCategory]
+    UNION ALL
+    SELECT 'Product' AS TableName, COUNT(*) AS [RowCount] FROM [SalesLT].[Product]
+    UNION ALL
+    SELECT 'Address' AS TableName, COUNT(*) AS [RowCount] FROM [SalesLT].[Address];
+    ```
+
+また、Azure 移行拡張機能を使い、SQL Server データベースから特定のテーブルを選んで Azure SQL Database に移行する方法についても学びました。 また、移行プロセスを監視する方法も学びます。
 
 ## クリーンアップ
 
