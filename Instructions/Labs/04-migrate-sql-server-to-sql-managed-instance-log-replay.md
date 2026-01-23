@@ -22,13 +22,13 @@ lab:
 | **ターゲット サーバー** | Azure SQL Managed Instance。 この演習中に作成します。|
 | **ソース サーバー** | 好みのサーバーにインストールされている SQL Server 2019 [以降](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)のバージョン のインスタンス。 |
 | **ソース データベース** | SQL Server インスタンスで復元される軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure) データベース。 |
-| **Azure Data Studio** | このソース データベースがあるのと同じサーバーに [Azure Data Studio](https://learn.microsoft.com/sql/azure-data-studio/download-azure-data-studio) をインストールします。 既にインストールされている場合は、最新バージョンを使用していることを確認するように更新します。 |
+| **[Microsoft SQL Server Management Studio]** | [Microsoft SQL Server Management Studio](https://learn.microsoft.com/sql/ssms/download-sql-server-management-studio-ssms) を、ソース データベースが配置されているのと同じサーバーにインストールします。 既にインストールされている場合は、最新バージョンを使用していることを確認するように更新します。 |
 
 ## SQL Server データベースを復元する
 
 *AdventureWorksLT* データベースを SQL Server インスタンスに復元しましょう。 このデータベースを、このラボ演習のソース データベースとして使います。 データベースが既に復元されている場合は、これらの手順をスキップできます。
 
-1. Windows の [スタート] ボタンを選択し、SSMS と入力します。 一覧から **[Microsoft SQL Server Management Studio 18]** を選択します。  
+1. Windows の [スタート] ボタンを選択し、SSMS と入力します。 一覧から **[Microsoft SQL Server Management Studio]** を選びます。  
 
 1. SSMS が開いたら、**[サーバーへの接続]** ダイアログに既定のインスタンス名が事前に設定されていることに注意してください。 **[接続]** を選択します。
 
