@@ -5,7 +5,7 @@ lab:
 
 # SQL Server データベースを Azure 仮想マシン上の SQL Server に移行する
 
-この演習では、Azure Data Studio 用の Azure 移行拡張機能を使用して、SQL Server データベースを Azure 仮想マシン上で実行されている SQL Server に移行する方法について説明します。 まず、Azure Data Studio 用の Azure 移行拡張機能をインストールして起動します。 次に、Azure 仮想マシンで実行されている SQL Server への SQL Server データベースのオンライン移行を実行します。 また、Azure portal で移行プロセスを監視し、カットオーバー プロセスを完了して移行を完了する方法についても説明します。
+この演習では、Azure 仮想マシンで実行されている SQL Server への SQL Server データベースの移行を、Azure Blob Storage を介したバックアップと復元という方法で行う方法を学習します。 ソース データベースを Azure ストレージ アカウントにバックアップし、これを Azure VM 上のターゲット SQL Server に復元します。 この単純明快なオフライン移行アプローチは、データベースが小さい場合や、ダウンタイムが許容される場合に適しています。
 
 この演習には約 **45** 分かかります。
 
@@ -19,7 +19,34 @@ lab:
 | --- | --- |
 | **ターゲット サーバー** | Azure 仮想マシン上の SQL Server。 詳細については、[Azure 仮想マシンで SQL Server をプロビジョニングする](https://microsoftlearning.github.io/dp-300-database-administrator/Instructions/Labs/01-provision-sql-vm.html)を参照してください。 **注:** ターゲットとサーバーの間の SQL Server のバージョンは同じである必要があります。 |
 | **ソース サーバー** | 選択したサーバーにインストールされている最新の [SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) のバージョン。 |
-| **ソース データベース** | SQL Server 2022 インスタンスで復元される軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure) データベース。 |
+| **ソース データベース** | SQL Server インスタンスで復元される軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure) データベース。 |
+| **SSMS** | [SQL Server Management Studio (SSMS)](https://learn.microsoft.com/sql/ssms/download-sql-server-management-studio-ssms) をソースとターゲット両方のサーバーにインストールします。これをデータベースのバックアップ、復元、確認に使用します。 |
+
+## SQL Server データベースを復元する
+
+*AdventureWorksLT* データベースを SQL Server インスタンスに復元しましょう。 このデータベースは、このラボ演習のソース データベースとして機能します。 データベースが既に復元されている場合は、これらの手順をスキップできます。
+
+1. Windows の [スタート] ボタンを選択し、SSMS と入力します。 一覧から **[Microsoft SQL Server Management Studio 18]** を選択します。  
+
+1. SSMS が開くと、 **[サーバーに接続]** ダイアログに既定のインスタンス名が事前に入力されていることがわかります。 **[接続]** を選択します。
+
+1. **Databases** フォルダーを選択し、**[新しいクエリ]** を選択します。
+
+1. 次の T-SQL をコピーして、新しいクエリ ウィンドウに貼り付けます。 データベース バックアップ ファイルの名前とパスが実際のバックアップ ファイルと一致していることを確認します。 このとおりでない場合は、このコマンドは失敗します。 クエリを実行してデータベースを復元します。
+
+    ```sql
+    RESTORE DATABASE AdventureWorksLT
+    FROM DISK = 'C:\<FolderName>\AdventureWorksLT2019.bak'
+    WITH RECOVERY,
+          MOVE 'AdventureWorksLT2019_Data' 
+            TO 'C:\<FolderName>\AdventureWorksLT2019.mdf',
+          MOVE 'AdventureWorksLT2019_Log'
+            TO 'C:\<FolderName>\AdventureWorksLT2019.ldf';
+    ```
+
+    > **注**:T-SQL コマンドを実行する前に、SQL Server マシンに軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure#download-backup-files) バックアップ ファイルがあることを確認してください。
+
+1. 復元が完了すると、成功メッセージが表示されます。
 
 ## BLOB コンテナーがある Azure ストレージ アカウントをプロビジョニングする
 
@@ -45,88 +72,88 @@ Azure ストレージ アカウントを作成する目的は、移行用の完�
     - **パブリック アクセス レベル:** 非公開
 1. **［作成］** を選択します
 
-## Azure Data Studio 用の Azure 移行拡張機能をインストールして起動する
+## ストレージ アカウントの SQL Server 資格情報を作成する
 
-Azure 移行拡張機能の使用を開始する前に、[Azure Data Studio](https://learn.microsoft.com/sql/azure-data-studio/download-azure-data-studio) をインストールする必要があります。 このシナリオでは、ソース データベースがあるのと同じサーバーに Azure Data Studio をインストールします。 この拡張機能は、Azure Data Studio Marketplace で入手できます。
+ソース データベースを Azure Blob Storage にバックアップするには、ストレージ アカウントのアクセス キー情報を格納する資格情報をあらかじめ作成する必要があります。
 
-移行拡張機能をインストールするには、次の手順に従います。
+1. SSMS を開いて**ソース**の SQL Server インスタンスに接続します。
 
-1. Azure Data Studio で拡張機能マネージャーを開きます。
-1. 「***Azure SQL 移行***」と検索して、この拡張機能を選択します。
-1. 拡張機能をインストールします。 インストールすると、インストール済みの拡張機能の一覧に Azure SQL 移行拡張機能が表示されます。
-1. Azure Data Studio で SQL Server インスタンスに接続します。
-1. Azure 移行拡張機能を起動するには、ソース インスタンス名を右クリックし、**[管理]** を選択して、Azure SQL 移行拡張機能のダッシュボードとランディング ページにアクセスします。
+1. **[新しいクエリ]** ウィンドウを開き、次に示す T-SQL ステートメントを実行して資格情報を作成します。 プレースホルダーの値を実際のストレージ アカウント名とアクセス キーで置き換えてください。
 
-## Azure 仮想マシンで実行されている SQL Server への SQL Server データベースのオンライン移行を実行する
+    ```sql
+    CREATE CREDENTIAL [https://<storage_account_name>.blob.core.windows.net/<container_name>]
+    WITH IDENTITY = 'SHARED ACCESS SIGNATURE',
+    SECRET = '<SAS token>';
+    ```
 
-Azure Data Studio を使用して最小限のダウンタイムでの移行を実行するには、次の手順に従います。
+    > **注:**  SAS トークンを生成するには、Azure portal で自分のストレージ アカウントに移動し、**[セキュリティとネットワーク]** の下の **[Shared Access Signature]** を選択し、**[Blob]** と **[コンテナー]** にアクセス許可として **[読み取り]**、**[書き込み]**、**[リスト]**、**[作成]** を付与し、適切な有効期限を設定してから **[SAS と接続文字列を生成する]** を選択します。 **[SAS トークン]** の値をコピーします (先頭の `?` を除く)。
 
-1. Azure Data Studio の拡張機能で Azure SQL への移行ウィザードを起動します。
+## ソース データベースを Azure Blob Storage にバックアップする
 
-1. **[手順 1: 評価用データベース]** で、移行するデータベースを選んでから、**[次へ]** を選択します。
-    
-    > **注**: パフォーマンス データを収集し、適切なサイズの Azure の推奨事項を取得することをお勧めします。
+次に、SQL Server の URL へのバックアップ機能を使用してソース データベースを Azure Blob Storage コンテナーに直接バックアップします。
 
-1. **[手順 2: 評価結果と推奨事項]** で、評価が完了するまで待ってから、**Azure SQL** ターゲットとして **Azure 仮想マシン上の SQL Server** を選択します。
+1. SSMS で、**ソース**の SQL Server に接続し、**[新しいクエリ]** ウィンドウを開いて次に示す T-SQL ステートメントを実行します。
 
-1. **[手順 2: 評価結果と推奨事項]** ページの下部にある **[表示/選択]** を選択して評価結果を表示します。 移行するデータベースを選択します。 
+    ```sql
+    BACKUP DATABASE AdventureWorksLT
+    TO URL = 'https://<storage_account_name>.blob.core.windows.net/<container_name>/AdventureWorksLT.bak'
+    WITH COMPRESSION, STATS = 10;
+    ```
 
-    > **注**: 少し時間を取って、右側の評価結果を確認してください。
+    > **注:**  `<storage_account_name>` と `<container_name>` を実際の値で置き換えてください。 `COMPRESSION` オプションを指定するとバックアップのサイズが小さくなり、転送に要する時間が短くなります。
 
-1. **[手順 3: Azure SQL ターゲット]** で、Azure アカウントと Azure 仮想マシン上のターゲット SQL Server を選択します。
+1. バックアップが正常に完了したことを確認します。 データベースが正常にバックアップされたことを示すメッセージが表示されるはずです。
 
-    ![Azure Data Studio の Azure 移行拡張機能の Azure SQL ターゲット構成のスクリーンショット。](../media/3-step-azure-sql-target.png)
+1. バックアップ ファイルが存在するかどうかを確認するには、Azure portal で自分のストレージ アカウント コンテナーに移動します。
 
-1. **[手順 4: Azure Database Migration Service]** で、Azure Data Studio のウィザードを使用して、新しい Azure Database Migration Service を作成します。 以前に作成してある場合は、再利用できます。 または、Azure portal を使用して Azure Database Migration Service のリソースを作成することもできます。
+## データベースを Azure VM 上のターゲット SQL Server 上に復元する
 
-    > **注**: サブスクリプションが名前空間 **Microsoft.DataMigration** を使用するように登録されていることを確認します。 リソース プロバイダーの登録を実行する方法については、「[リソース プロバイダーの登録](https://learn.microsoft.com/azure/dms/quickstart-create-data-migration-service-portal#register-the-resource-provider)」を参照してください。
+次に、バックアップ ファイルを Azure Blob Storage から、Azure 仮想マシン上で実行されているターゲット SQL Server に復元します。
 
-1. ソース データベースをバックアップする。 [SSMS または T-SQL を使用して Microsoft Azure Blob Storage にバックアップ](https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/sql-server-backup-to-url)できます。 または、Azure portal を使用してデータベース バックアップをコンテナー フォルダーに手動でコピーすることもできます。
+1. SSMS を開き、Azure VM 上の**ターゲット** SQL Server に接続します。
 
-    > **注**: バックアップ ファイルのコピーを続行する前に、コンテナーにフォルダーが作成されていることを確認してください。
+1. **[新しいクエリ]** ウィンドウを開き、次に示す T-SQL ステートメントを実行して同じ資格情報をターゲット サーバー上に作成します。
 
-1. **[手順 5: データ ソースの構成]** で、オンプレミスのネットワーク共有または Azure Blob Storage コンテナー上のデータベース バックアップの場所を選択します。
+    ```sql
+    CREATE CREDENTIAL [https://<storage_account_name>.blob.core.windows.net/<container_name>]
+    WITH IDENTITY = 'SHARED ACCESS SIGNATURE',
+    SECRET = '<SAS token>';
+    ```
 
-1. データベースの移行を開始し、Azure Data Studio での進行状況を監視します。 Azure portal の Azure Database Migration Service リソースの下で進行状況を追跡することもできます。
+    > **注:**  前に生成した、同じ SAS トークンを使用します。 有効期限が切れていないことを確認してください。
 
-    > **注**: Azure Data Migration Services は、ターゲット サーバーでバックアップ ファイルを自動的に調整および復元します。
+1. 次に示す T-SQL ステートメントを実行してデータベースをバックアップ ファイルから復元します。
 
-1. 移行ダッシュボードで **[データベースの移行が進行中]** を選択して、進行中の移行を表示します。 
+    ```sql
+    RESTORE DATABASE AdventureWorksLT
+    FROM URL = 'https://<storage_account_name>.blob.core.windows.net/<container_name>/AdventureWorksLT.bak'
+    WITH REPLACE, STATS = 10;
+    ```
 
-    ![Azure Data Studio 用の Azure 移行拡張機能の移行ダッシュボードのスクリーンショット。](../media/3-data-migration-dashboard.png)
+    > **注:**  `REPLACE` オプションを指定すると、同じ名前の既存のデータベースが上書きされます。 データベースがターゲット上に存在しない場合は、このオプションを省略してもかまいません。 データベースのサイズとネットワーク速度によっては、復元に数分かかることがあります。
 
-1. 詳細を確認するには、データベース名を選択します。
+1. 復元が正常に完了したことを確認します。 データベースが正常に復元されたことを示すメッセージが表示されるはずです。
 
-    ![Azure Data Studio 用の Azure 移行拡張機能の移行詳細のスクリーンショット。](../media/3-dashboard-details.png)
+## 移行を検証する
 
-## Azure portal で移行を監視します
+1. SSMS で、Azure VM 上の**ターゲット** SQL Server に接続し、**[オブジェクト エクスプローラー]** で **[データベース]** を展開して **AdventureWorksLT** データベースが表示されることを確認します。
 
-または、Azure Database Migration Service を使用して移行アクティビティを監視することもできます。 
+1. **AdventureWorksLT** データベースを右クリックして **[新しいクエリ]** を選択します。 データが正しく移行されたことを確認するために、次のサンプル クエリを実行します。
 
-1. 
-    ![Azure portal の Azure Database Migration Service の監視ページのスクリーンショット。](../media/3-dms-azure-portal.png)
-    
-## カットオーバー プロセスを完了する
+    ```sql
+    -- Verify table count
+    SELECT COUNT(*) AS TableCount
+    FROM AdventureWorksLT.INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_TYPE = 'BASE TABLE';
 
-1. ソース データベースの[ログ末尾のバックアップ](https://learn.microsoft.com/sql/relational-databases/backup-restore/tail-log-backups-sql-server)を作成します。
+    -- Verify row counts for a sample table
+    SELECT COUNT(*) AS RowCount
+    FROM AdventureWorksLT.SalesLT.Customer;
+    ```
 
-1. Azure portal で、トランザクション ログ バックアップを、完全なバックアップ ファイルがあるコンテナーとフォルダーにアップロードします。
+1. 同じクエリをソース データベースに対して実行したときの結果と比較してデータ整合性を確認します。
 
-1. Azure 移行拡張機能の監視ページで **[カットオーバーの完了]** を選択します。
-
-    ![Azure Data Studio の Azure 移行拡張機能の移行カットオーバー オプションのスクリーンショット。](../media/3-dashboard-details-cutover.png)
-
-1. すべてのログ バックアップがターゲット データベースに復元されていることを確認します。 **ログ バックアップの保留中の復元**の値は 0 にする必要があります。 この手順により、移行が完了します。
-
-    ![Azure Data Studio の Azure 移行拡張機能の移行カットオーバー オプションのスクリーンショット。](../media/3-dashboard-details-cutover-extension.png)
-
-1. [移行の状態] プロパティが **[完了処理中]** に変わります。その後、移行が完了した後に **[成功]** に変わります。
-
-    > **注**: Azure portal を使用して、Azure Database Migration Service で同様の手順を使用して、カットオーバーを完了できます。
-
-1. 状態が **[成功]** になったら、ターゲット サーバーに移動し、ターゲット データベースを検証します。 データベース スキーマとデータを確認します。
-
-Azure Data Studio 用の Azure 移行拡張機能を使用して、SQL Server データベースを Azure 仮想マシン上で実行されている SQL Server に移行する方法について説明しました。 また、移行を完了するためにカットオーバー プロセスを完了する方法についても説明しました。 これにより、すべてのデータが正常に移行され、新しいデータベースが完全に動作することが保証されます。 カットオーバー プロセスが完了したら、Azure 仮想マシンで実行されている新しい SQL Server データベースの使用を開始できます。 
+これで、Azure 仮想マシン上で実行されている SQL Server に、Azure Blob Storage を介したバックアップと復元という方法を使用して SQL Server データベースを移行する作業が完了しました。 この方法では、SQL Server のネイティブの機能である URL へのバックアップを使用してデータベースが Azure ストレージ アカウントを通して転送されるため、オフライン移行をシンプルかつ効率的に行うことができます。
 
 ## クリーンアップ
 
@@ -134,6 +161,6 @@ Azure Data Studio 用の Azure 移行拡張機能を使用して、SQL Server �
 
 リソースを不必要に実行したままにしておくと、追加コストが発生する可能性があります。 [Azure portal](https://portal.azure.com?azure-portal=true) でリソースを個別に削除することも、リソースのセット全体を削除することもできます。
 
-## 詳細情報
+## 詳細
 
 Azure 仮想マシンの SQL Server の詳細については、「[Azure 仮想マシンにおける SQL Server の概要](https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/sql-server-on-azure-vm-iaas-what-is-overview?view=azuresql-vm)」を参照してください。
