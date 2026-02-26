@@ -1,7 +1,7 @@
 
 # SQL Server データベースを Azure SQL Database に移行する
 
-この演習では、Azure CLI と Azure Database Migration Service (DMS) を使用して、特定のテーブルを SQL Server データベースから Azure SQL Database に移行する方法を学びます。 
+この演習では、Azure Database Migration Service (DMS) を使用して、特定のテーブルを SQL Server データベースから Azure SQL Database に移行する方法を学びます。 
 
 > **重要**: 移行の所要時間に影響を与えないよう (ネットワークと接続の制約の影響を受ける可能性があります)、例として少数のテーブル (*Customer*、*ProductCategory*、*Product*、*Address*) のみを移行します。 必要に応じて、同じプロセスを使ってスキーマ全体を移行できます。
 
@@ -19,9 +19,8 @@
 | **ターゲット データベース** | Azure SQL Database サーバーのデータベース。 この演習中に作成します。|
 | **ソース サーバー** | 好みのサーバーにインストールされている SQL Server 2019 [以降](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)のバージョン のインスタンス。 |
 | **ソース データベース** | SQL Server インスタンスで復元される軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure) データベース。 |
-| **Azure CLI** | [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) (バージョン 2.51.0 以降) をインストールします。 インストール後、``az extension add --name datamigration`` を実行して **datamigration** 拡張機能をインストールします。 |
+| **Azure Cloud Shell** | Azure portal から [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/overview) (PowerShell) を使用して、Azure CLI コマンドを実行します。 ローカルのインストールは必要ありません。 |
 | **SSMS** | [SQL Server Management Studio (SSMS)](https://learn.microsoft.com/sql/ssms/download-sql-server-management-studio-ssms) をインストールして、ソースおよびターゲット データベースに対して T-SQL スクリプトを実行します。 |
-| **Microsoft.DataMigration** リソース プロバイダー | サブスクリプションが名前空間 **Microsoft.DataMigration** を使用するように登録されていることを確認します。 リソース プロバイダーの登録を実行する方法については、「[リソース プロバイダーの登録](https://learn.microsoft.com/azure/dms/quickstart-create-data-migration-service-portal#register-the-resource-provider)」を参照してください。 |
 | **Microsoft Integration Runtime** | [Microsoft Integration Runtime](https://aka.ms/sql-migration-shir-download) をインストール します。 |
 
 ## SQL Server データベースを復元する
@@ -317,50 +316,64 @@ Microsoft.DataMigration** 名前空間がサブスクリプションに**既に�
     SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'SalesLT';
     ```
 
-## Azure CLI (DMS) を使用してオフライン移行を実行する
+## SQL Server 認証を有効にしてログインを作成する
 
-これで、データを移行する準備ができました。 Azure CLI と Azure Database Migration Service を使用してオフライン移行を実行するには、次の手順に従います。
+ソース SQL Server で SQL Server 認証が有効になっていることを確認し、移行サービスで使用されるログインを作成します。
 
-### Azure にログインしてサブスクリプションを設定する
+1. SSMS で、ソース SQL Server インスタンスに接続します。 **[オブジェクト エクスプローラー]** でサーバー名を右クリックし、**[プロパティ]** を選択します。
 
-1. コマンド プロンプトまたは PowerShell ウィンドウを開き、Azure にログインします:
+1. **[サーバーのプロパティ]** ページで、**[セキュリティ]** ページを選択します。 **[サーバー認証]** で **[SQL Server と Windows 認証モード]** を選択し、**[OK]** を選択します。
 
-    ```bash
-    az login
+1. 変更を有効にするには、SQL Server サービスを再起動します。 **[SQL Server 構成マネージャー]** または **[サービス]** コンソールから再起動できます。
+
+1. SQL Server サービスを再起動した後、SSMS のソース SQL Server に再接続し、次のスクリプトを実行して **sqladmin** ログインを作成し、必要なアクセス許可を付与します:
+
+    ```sql
+    -- Create the sqladmin login
+    CREATE LOGIN sqladmin WITH PASSWORD = '<Your password>';
+
+    -- Grant sysadmin role to sqladmin
+    ALTER SERVER ROLE sysadmin ADD MEMBER sqladmin;
     ```
 
-1. 複数のサブスクリプションがある場合は、適切なサブスクリプションを選択します:
+    > **注:**  このログインとパスワードを書き留めます。 移行中にソース接続を構成するときに、後で必要になります。
 
-    ```bash
-    az account set --subscription "<Your subscription name or ID>"
-    ```
+## Azure DMS を使用してオフライン移行を実行する
+
+これで、データを移行する準備ができました。 Azure Database Migration Service を使用してオフライン移行を実行するには、次の手順に従います。
 
 ### Azure Database Migration Service インスタンスを作成する
 
-1. Azure Database Migration Service インスタンスがまだない場合は作成します。 プレースホルダーの値を実際の値に置き換えます:
+1. Azure portal で、上部のツール バーの **[Cloud Shell]** アイコンを選択します。 シェルの種類として **[PowerShell]** を選択します。 メッセージが表示されたら **[ストレージ アカウントは必要ありません]** を選択し、ご自分のサブスクリプションを選択し、**[適用]** を選択します。
 
-    ```bash
-    az datamigration sql-service create \
-        --resource-group "<Your resource group>" \
-        --sql-migration-service-name "DMS-Migration-Service" \
+1. Azure Database Migration Service インスタンスを作成する。 プレースホルダーの値を実際の値に置き換えます:
+
+    ```powershell
+    az datamigration sql-service create `
+        --resource-group "<Your resource group>" `
+        --sql-migration-service-name "DMS-Migration-Service" `
         --location "<Your region>"
     ```
 
+    > **注:**  **datamigration** 拡張機能をインストールするように求められたら、**[Y]** を選択して確認します。 このコマンドは、拡張機能のインストール後も続行されます。
+
 1. サービスが作成されるまで待ちます。 状態を確認するには、次を実行します:
 
-    ```bash
-    az datamigration sql-service show \
-        --resource-group "<Your resource group>" \
+    ```powershell
+    az datamigration sql-service show `
+        --resource-group "<Your resource group>" `
         --sql-migration-service-name "DMS-Migration-Service"
     ```
 
 ### セルフホステッド Integration Runtime を登録する
 
-1. DMS サービスの認証キーを取得します:
+1. まだインストールしていない場合は、ソース SQL Server インスタンスにアクセスできるマシンに [Microsoft Integration Runtime](https://aka.ms/sql-migration-shir-download) をダウンロードしてインストールします。 利用可能な最新バージョンをダウンロードしてください。
 
-    ```bash
-    az datamigration sql-service list-auth-key \
-        --resource-group "<Your resource group>" \
+1. Cloud Shell で、DMS サービスの認証キーを取得します:
+
+    ```powershell
+    az datamigration sql-service list-auth-key `
+        --resource-group "<Your resource group>" `
         --sql-migration-service-name "DMS-Migration-Service"
     ```
 
@@ -370,9 +383,9 @@ Microsoft.DataMigration** 名前空間がサブスクリプションに**既に�
 
 1. ノードの状態を確認して、Integration Runtime が DMS サービスに接続されていることを確認します:
 
-    ```bash
-    az datamigration sql-service list-integration-runtime-metric \
-        --resource-group "<Your resource group>" \
+    ```powershell
+    az datamigration sql-service list-integration-runtime-metric `
+        --resource-group "<Your resource group>" `
         --sql-migration-service-name "DMS-Migration-Service"
     ```
 
@@ -380,36 +393,60 @@ Microsoft.DataMigration** 名前空間がサブスクリプションに**既に�
 
 ### データベースの移行を開始する
 
-1. 次のコマンドを使用してオフライン移行を開始します。 プレースホルダーの値をご利用の環境の詳細に置き換えます:
+1. Azure portal で、**DMS-Migration-Service** リソースに移動します。 [概要] ページで、**[+ 新しい移行]** を選択します。
 
-    ```bash
-    az datamigration sql-db create \
-        --resource-group "<Your resource group>" \
-        --sqldb-instance-name "<Target Azure SQL Server name>" \
-        --target-db-name "AdventureWorksLT" \
-        --migration-service "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.DataMigration/sqlMigrationServices/DMS-Migration-Service" \
-        --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Sql/servers/<Target Azure SQL Server name>" \
-        --source-database-name "AdventureWorksLT" \
-        --source-sql-connection authentication="SqlAuthentication" data-source="<Source SQL Server IP or hostname>" encrypt-connection=true password="<Source SQL password>" trust-server-certificate=true user-name="<Source SQL username>" \
-        --target-sql-connection authentication="SqlAuthentication" data-source="<Target server>.database.windows.net" encrypt-connection=true password="<Target SQL password>" user-name="sqladmin" \
-        --table-list "[SalesLT].[Address]" "[SalesLT].[Customer]" "[SalesLT].[Product]" "[SalesLT].[ProductCategory]" \
-        --migration-scope "SelectedTables"
-    ```
+1. **[新しい移行シナリオの選択]** で、次の詳細を入力します:
+    - **ソース サーバーの種類**:SQL Server
+    - **ターゲット サーバーの種類**:Azure SQL Database
+    - **移行モード:** オフライン
+    - **[選択]** を選択します。
 
-    > **注:**  `--table-list` パラメーターには、移行する 4 つのテーブルを指定します:*Address*、*Customer*、*Product*、*ProductCategory*。 スキーマは既に手動で作成されているため、データのみが移行されます。
+1. **[手順 1: ソースの詳細]** で、次のように構成します:
+    - **ソース SQL Server インスタンスは Azure で追跡されていますか?**:**[いいえ]** を選択します。
+    - **ソース インフラストラクチャの種類:****仮想マシン**を選択します。
+    - **[SQL Server インスタンスの詳細を選択する]** で、次のように入力します:
+        - **[サブスクリプション]**:サブスクリプションを選択します。
+        - **リソース グループ**: リソース グループを選択します。
+        - **場所:** ソース SQL Server の場所を選択します。
+        - **SQL Server インスタンス名:** ソース SQL Server インスタンス名を入力します。
+    - **[次へ: ソース SQL Server に接続します>>]** を選択します。
+
+1. **[手順 2: ソース SQL Server に接続]** で、次の詳細を入力します:
+    - **ソース サーバー名:** ソース SQL Server のホスト名を入力します。
+    - **認証の種類:** SQL 認証
+    - **ユーザー名:** &lt;ソース SQL ユーザー名&gt;
+    - **パスワード:**&lt;ソース SQL パスワード&gt;
+    - **[接続のプロパティ]** で、**[接続の暗号化]** と **[サーバー証明書を信頼する]** のチェック ボックスをオフにします。
+    - **[次へ: 移行するデータベースを選択]** を選択します。
+
+1. **[手順 3: 移行するデータベースを選択]** で、**AdventureWorksLT** データベースを選択します。 **[次へ: ターゲット Azure SQL Database に接続]** を選択します。
+
+1. **[手順 4:ターゲット Azure SQL Database に接続]** で、ターゲット サーバーの詳細を入力します:
+    - **Azure SQL Database サーバー名:**&lt;ターゲット サーバー&gt;.database.windows.net
+    - **認証の種類:** SQL 認証
+    - **ユーザー名:** sqladmin
+    - **パスワード:** &lt;お使いのパスワード&gt;
+    - **[接続]** を選択し、**[次へ: ソースおよびターゲット データベースのマップ]** を選択します。
+
+1. **[手順 5:ソースおよびターゲット データベースのマップ]** で、ソース データベース **AdventureWorksLT** がターゲット データベース **AdventureWorksLT** にマップされていることを確認します。 **[次へ: 移行するデータベース テーブルを選択]** を選択します。
+
+1. **[移行するデータベース テーブルを選択]** ページで、**AdventureWorksLT** セクションを展開します。 ターゲットにスキーマが既に作成されているため、**[不足しているスキーマ]** オプションをオフにします。 次の 4 つのテーブルを選択します:
+     - **[SalesLT].[Address]**
+     - **[SalesLT].[Customer]**
+     - **[SalesLT].[Product]**
+     - **[SalesLT].[ProductCategory]**
+
+    > **注:**  **[ターゲット テーブルは存在しません]** 状態のテーブルでは、**[不足しているスキーマ]** オプションをオンにするか、スキーマを事前に手動で作成する必要があります。
+
+1. **[次へ: データベース移行の概要 >>]** を選択します。
+
+1. **[データベースの移行の概要]** ページで、移行の詳細を確認し、**[移行の開始]** を選択します。
 
 ### 移行を監視する
 
-1. 次を実行して移行状態を監視します:
+1. [DMS サービス] ページで、移行を選択して進行状況を表示します。
 
-    ```bash
-    az datamigration sql-db show \
-        --resource-group "<Your resource group>" \
-        --sqldb-instance-name "<Target Azure SQL Server name>" \
-        --target-db-name "AdventureWorksLT"
-    ```
-
-1. **migrationStatus** に **Succeeded** が表示されるまで、上記のコマンドを繰り返します。 Azure SQL Database リソースに移動し、**[データ管理]** で **[移行]** を選択して、Azure portal の状態を確認することもできます。
+1. 移行の状態が **Succeeded** になるまで待ちます。 ソース データベース名を選択すると、移行の詳細と進行状況を表示できます。
 
     > **注:**  ネットワーク接続とデータの量によっては、移行が完了するまで数分かかる場合があります。
 
@@ -428,7 +465,7 @@ Microsoft.DataMigration** 名前空間がサブスクリプションに**既に�
     SELECT 'Address' AS TableName, COUNT(*) AS [RowCount] FROM [SalesLT].[Address];
     ```
 
-Azure CLI と Azure Database Migration Service (DMS) を使用して、特定のテーブルを SQL Server データベースから Azure SQL Database に選択的に移行できました。 また、コマンド ラインを使用して移行プロセスを監視する方法についても学習しました。
+Azure Database Migration Service (DMS) を使用して、SQL Server データベースから Azure SQL Database への特定のテーブルの選択的移行が正常に実行されました。 また、Azure portal を通じて移行プロセスを監視する方法についても学習しました。
 
 ## クリーンアップ
 
