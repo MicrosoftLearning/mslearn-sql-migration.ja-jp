@@ -1,6 +1,14 @@
 ---
 lab:
   title: SQL Server データベースを Azure SQL Database に移行する
+  description: この演習では、Azure Data Studio 用の Azure 移行拡張機能を使って、SQL Server データベースの特定のテーブルを Azure SQL Database に移行する方法を学びます。
+  level: 300
+  duration: 45 minutes
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure SQL Database
+    - SQL Server Migration
 ---
 
 # SQL Server データベースを Azure SQL Database に移行する

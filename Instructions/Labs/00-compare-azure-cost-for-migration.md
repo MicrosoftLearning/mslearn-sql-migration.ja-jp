@@ -1,6 +1,14 @@
 ---
 lab:
   title: 移行に関する Azure のコストを比較する
+  description: この演習は、Azure 料金計算ツールを使って Azure への移行のコストを見積もるのに役立ちます。
+  level: 300
+  duration: 30 minutes
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure Cost Management
+    - Azure Pricing Calculator
 ---
 
 # 移行に関する Azure のコストを比較する

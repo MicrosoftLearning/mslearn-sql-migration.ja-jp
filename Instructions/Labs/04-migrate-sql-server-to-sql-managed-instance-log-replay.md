@@ -1,6 +1,15 @@
 ---
 lab:
   title: Log Replay Service を使用して SQL Server データベースを Azure SQL Managed Instance に移行する
+  description: この演習では、Log Replay Service を使用して SQL Server データベースを Azure SQL Managed Instance に移行する方法を学習します。
+  level: 300
+  duration: 45 minutes
+  islab: true
+  primarytopics:
+    - Azure
+    - Azure SQL Managed Instance
+    - SQL Server Migration
+    - Log Replay Service
 ---
 
 # Log Replay Service を使用して SQL Server データベースを Azure SQL Managed Instance に移行する
