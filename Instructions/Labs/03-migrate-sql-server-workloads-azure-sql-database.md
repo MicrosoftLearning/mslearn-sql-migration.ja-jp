@@ -1,19 +1,19 @@
 ---
 lab:
   title: SQL Server データベースを Azure SQL Database に移行する
-  description: この演習では、Azure Data Studio 用の Azure 移行拡張機能を使って、SQL Server データベースの特定のテーブルを Azure SQL Database に移行する方法を学びます。
+  description: この演習では、Azure Database Migration Service (DMS) を使用して、特定のテーブルを SQL Server データベースから Azure SQL Database に移行する方法を学びます。
   level: 300
   duration: 45 minutes
   islab: true
   primarytopics:
     - Azure
     - Azure SQL Database
-    - SQL Server Migration
+    - Azure Database Migration Service
 ---
 
 # SQL Server データベースを Azure SQL Database に移行する
 
-この演習では、Azure Data Studio 用の Azure 移行拡張機能を使って、SQL Server データベースの特定のテーブルを Azure SQL Database に移行する方法を学びます。 
+この演習では、Azure Database Migration Service (DMS) を使用して、特定のテーブルを SQL Server データベースから Azure SQL Database に移行する方法を学びます。 
 
 > **重要**: 移行の所要時間に影響を与えないよう (ネットワークと接続の制約の影響を受ける可能性があります)、例として少数のテーブル (*Customer*、*ProductCategory*、*Product*、*Address*) のみを移行します。 必要に応じて、同じプロセスを使ってスキーマ全体を移行できます。
 
@@ -31,8 +31,8 @@ lab:
 | **ターゲット データベース** | Azure SQL Database サーバーのデータベース。 この演習中に作成します。|
 | **ソース サーバー** | 好みのサーバーにインストールされている SQL Server 2019 [以降](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)のバージョン のインスタンス。 |
 | **ソース データベース** | SQL Server インスタンスで復元される軽量の [AdventureWorks](https://learn.microsoft.com/sql/samples/adventureworks-install-configure) データベース。 |
-| **Azure Data Studio** | このソース データベースがあるのと同じサーバーに [Azure Data Studio](https://learn.microsoft.com/sql/azure-data-studio/download-azure-data-studio) をインストールします。 既にインストールされている場合は、最新バージョンを使用していることを確認するように更新します。 |
-| **Microsoft.DataMigration** リソース プロバイダー | サブスクリプションが名前空間 **Microsoft.DataMigration** を使用するように登録されていることを確認します。 リソース プロバイダーの登録を実行する方法については、「[リソース プロバイダーの登録](https://learn.microsoft.com/azure/dms/quickstart-create-data-migration-service-portal#register-the-resource-provider)」を参照してください。 |
+| **Azure Cloud Shell** | Azure portal から [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/overview) (PowerShell) を使用して、Azure CLI コマンドを実行します。 ローカルのインストールは必要ありません。 |
+| **SSMS** | [SQL Server Management Studio (SSMS)](https://learn.microsoft.com/sql/ssms/download-sql-server-management-studio-ssms) をインストールして、ソースおよびターゲット データベースに対して T-SQL スクリプトを実行します。 |
 | **Microsoft Integration Runtime** | [Microsoft Integration Runtime](https://aka.ms/sql-migration-shir-download) をインストール します。 |
 
 ## SQL Server データベースを復元する
@@ -123,49 +123,18 @@ Microsoft.DataMigration** 名前空間がサブスクリプションに**既に�
 
 1. **[保存]** を選択します。
 
-## Azure Data Studio で Azure SQL Database に接続する
-
-Azure 移行拡張機能の使用を開始する前に、ターゲット データベースに接続しましょう。
-
-1. Azure Data Studio を起動します。
-
-1. **[接続]**、**[接続の追加]** の順に選択します。
-
-1. **[接続の詳細] ** フィールドに SQL Server 名とその他の情報を入力します。
-
-    > **注**: 前もって作成した SQL Server の名前を入力します。 形式は **<server>.database.windows.net** の形式である必要があります。
-
-1. **[認証の種類]** で、**[SQL ログイン]** を選択し、ユーザー名とパスワードを指定します。
-
-1. **[接続]** を選択します。
-
-## Azure Data Studio 用の Azure 移行拡張機能をインストールして起動する
-
-移行拡張機能をインストールするには、次の手順に従います。 拡張機能が既にインストールされている場合は、これらの手順をスキップできます。
-
-1. Azure Data Studio で拡張機能マネージャーを開きます。
-
-1. 「***Azure SQL 移行***」と検索して、この拡張機能を選択します。
-
-1. 拡張機能をインストールします。 インストールすると、インストール済みの拡張機能の一覧に Azure SQL 移行拡張機能が表示されます。
-
-1. Azure Data Studio で SQL Server インスタンスに接続します。 [新しい接続] タブで、**[暗号化]** オプションに **[オプション]** (False) を選択します。
-
-1. Azure 移行拡張機能を起動するには、SQL Server インスタンス名を右クリックし、**[管理]** を選択して、Azure SQL 移行拡張機能のダッシュボードとランディング ページにアクセスします。
-
-    > **注**: **Azure SQL 移行**がサーバー ダッシュボードのサイド バーに表示されない場合は、Azure Data Studio をもう一度開きます。
-
 ## ターゲット スキーマを作成する
 
-データの移行を始める前に、ターゲット テーブルのスキーマを手動で作成してみましょう。 
+データの移行を始める前に、ターゲット テーブルのスキーマを手動で作成してみましょう。
 
-1. Azure Data Studio で、お使いの Azure SQL Database に接続します。
+1. SSMS を開き、Azure SQL Database に接続します。 **[サーバーに接続]** ダイアログで、サーバー名として `<server>.database.windows.net` を入力し、**[SQL Server 認証]** を選択して、前に設定した管理者資格情報を入力します。
 
-1. *AdventureWorksLT* データベースを右クリックし、**[新しいクエリ]** を選択します。
-
-1. 次の T-SQL スクリプトをコピーして貼り付け、移行するテーブルのスキーマを作成します。
+1. 新しい **[新しいクエリ]** ウィンドウに次の T-SQL スクリプトをコピーして貼り付け、移行するテーブルのスキーマを作成します:
 
     ```sql
+        USE [AdventureWorksLT]
+        GO
+        
         CREATE SCHEMA [SalesLT]
         GO
         
@@ -351,61 +320,151 @@ Azure 移行拡張機能の使用を開始する前に、ターゲット デー�
         
     ```
 
-1. **F5** キーを押すか、**[実行]** をクリックして、スクリプト実行します。
+1. **F5** キーを押すか **[実行]** を選択して、スクリプトを実行します。
 
-1. データベース エクスプローラーで **Tables** フォルダーを展開して、テーブルが正常に作成されたことを確認します。
+1. 次を実行して、テーブルが正常に作成されたことを確認します:
 
-## SQL Server データベースから Azure SQL Database へのオフライン移行を実行する
+    ```sql
+    SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'SalesLT';
+    ```
 
-これで、データを移行する準備ができました。 Azure Data Studio を使用してオフライン移行を実行するには、次の手順に従います。
+## SQL Server 認証を有効にしてログインを作成する
 
-1. Azure Data Studio の拡張機能で **Azure SQL への移行**ウィザードを起動し、**[Azure SQL への移行]** を選択します。
+ソース SQL Server で SQL Server 認証が有効になっていることを確認し、移行サービスで使用されるログインを作成します。
 
-1. **[手順 1: 評価データベース]** の *[Azure portal で移行プロセスを追跡しますか?]* で **[いいえ]** を選んでから、*AdventureWorksLT* データベースを選びます。 [**次へ**] を選択します。
+1. SSMS で、ソース SQL Server インスタンスに接続します。 **[オブジェクト エクスプローラー]** でサーバー名を右クリックし、**[プロパティ]** を選択します。
 
-1. **[手順 2: 評価の概要と SKU の推奨事項]** で、評価が完了するまで待ち、結果を確認します。 [**次へ**] を選択します。
+1. **[サーバーのプロパティ]** ページで、**[セキュリティ]** ページを選択します。 **[サーバー認証]** で **[SQL Server と Windows 認証モード]** を選択し、**[OK]** を選択します。
 
-1. **[手順 3: ターゲット プラットフォームと評価結果]** で、ターゲットの種類として **[Azure SQL Database]** を選択します。 評価結果を確認したら、**[次へ]** を選択します。
+1. 変更を有効にするには、SQL Server サービスを再起動します。 **[SQL Server 構成マネージャー]** または **[サービス]** コンソールから再起動できます。
 
-1. **[手順 4:Azure SQL ターゲット]** で、アカウントがまだリンクされていない場合は、**[アカウントのリンク]** リンクを選択してアカウントを追加してください。 次に、Azure アカウント、Microsoft Entra テナント、サブスクリプション、場所、リソース グループ、Azure SQL Database サーバー、および Azure SQL Database の資格情報を選択します。
+1. SQL Server サービスを再起動した後、SSMS のソース SQL Server に再接続し、次のスクリプトを実行して **sqladmin** ログインを作成し、必要なアクセス許可を付与します:
 
-1. **[接続]** を選択した後、**[ターゲット データベース]** として *AdventureWorksLT* データベースを選択します。 [**次へ**] を選択します。
+    ```sql
+    -- Create the sqladmin login
+    CREATE LOGIN sqladmin WITH PASSWORD = '<Your password>';
 
-1. **[手順 5:Azure Database Migration Service]** で、**[新規作成]** リンクを選び、ウィザードを使用して新しい Azure Database Migration Service を作成します。 ウィザードで提供される **[手動で構成する]** の手順に従って、セルフホステッド統合ランタイムを設定します。 以前に作成してある場合は、再利用できます。
+    -- Grant sysadmin role to sqladmin
+    ALTER SERVER ROLE sysadmin ADD MEMBER sqladmin;
+    ```
 
-1. **[手順 6:データ ソースの構成]** で、セルフホステッド統合ランタイムから SQL Server インスタンスに接続するための資格情報を入力します。
+    > **注:**  このログインとパスワードを書き留めます。 移行中にソース接続を構成するときに、後で必要になります。
 
-1. AdventureWorksLT データベースの *[テーブルの選択]* 列で **[編集]** を選びます。
+## Azure DMS を使用してオフライン移行を実行する
 
-1. **[スキーマをターゲットに移行する]** オプションをオフにします (スキーマは手動で既に作成してあるため)。
+これで、データを移行する準備ができました。 Azure Database Migration Service を使用してオフライン移行を実行するには、次の手順に従います。
 
-1. **[ターゲットで利用可能]** タブでは、移行の準備ができているテーブルが 4 つあることが示されています。
-     - **SalesLT.Customer**
-     - **SalesLT.ProductCategory** 
-     - **SalesLT.Product**
-     - **SalesLT.Address**
+### Azure Database Migration Service インスタンスを作成する
 
-1. **[更新]** を選んで、テーブルの選択を保存します。
+1. Azure portal で、上部のツール バーの **[Cloud Shell]** アイコンを選択します。 シェルの種類として **[PowerShell]** を選択します。 メッセージが表示されたら **[ストレージ アカウントは必要ありません]** を選択し、ご自分のサブスクリプションを選択し、**[適用]** を選択します。
 
-1. **[検証の実行]** を選択します。
+1. Azure Database Migration Service インスタンスを作成する。 プレースホルダーの値を実際の値に置き換えます:
 
-    ![Azure Data Studio 用の Azure 移行拡張機能の検証手順実行のスクリーンショット。](../media/3-run-validation.png) 
+    ```powershell
+    az datamigration sql-service create `
+        --resource-group "<Your resource group>" `
+        --sql-migration-service-name "DMS-Migration-Service" `
+        --location "<Your region>"
+    ```
 
-1. 検証が完了したら、**[完了]** を選んでから **[次へ]** を選びます。
+    > **注:**  **datamigration** 拡張機能をインストールするように求められたら、**[Y]** を選択して確認します。 このコマンドは、拡張機能のインストール後も続行されます。
 
-1. **[手順 7:概要]** で、**[移行の開始]** を選びます。
+1. サービスが作成されるまで待ちます。 状態を確認するには、次を実行します:
 
-1. 移行ダッシュボードで **[データベースの移行が進行中]** を選択して、移行の状態を表示します。 
+    ```powershell
+    az datamigration sql-service show `
+        --resource-group "<Your resource group>" `
+        --sql-migration-service-name "DMS-Migration-Service"
+    ```
 
-    ![Azure Data Studio 用の Azure 移行拡張機能の移行ダッシュボードのスクリーンショット。](../media/3-data-migration-dashboard.png)
+### セルフホステッド Integration Runtime を登録する
 
-1. *AdventureWorks* データベース名を選択すると、詳細が表示されます。
+1. まだインストールしていない場合は、ソース SQL Server インスタンスにアクセスできるマシンに [Microsoft Integration Runtime](https://aka.ms/sql-migration-shir-download) をダウンロードしてインストールします。 利用可能な最新バージョンをダウンロードしてください。
 
-    ![Azure Data Studio 用の Azure 移行拡張機能の移行詳細のスクリーンショット。](../media/3-dashboard-sqldb.png)
+1. Cloud Shell で、DMS サービスの認証キーを取得します:
 
-1. 状態が **[成功]** になったら、ターゲット サーバーに移動し、ターゲット データベースを検証します。 
+    ```powershell
+    az datamigration sql-service list-auth-key `
+        --resource-group "<Your resource group>" `
+        --sql-migration-service-name "DMS-Migration-Service"
+    ```
 
-1. 次のクエリを実行して、データの移行が成功したことを確認します。
+1. 返された認証キーのいずれかをコピーします。
+
+1. Integration Runtime をインストールしたコンピューターで **Microsoft Integration Runtime Configuration Manager** を開き、認証キーを貼り付けることでノードを登録します。 **[登録]**、**[完了]** の順に選択します。
+
+1. ノードの状態を確認して、Integration Runtime が DMS サービスに接続されていることを確認します:
+
+    ```powershell
+    az datamigration sql-service list-integration-runtime-metric `
+        --resource-group "<Your resource group>" `
+        --sql-migration-service-name "DMS-Migration-Service"
+    ```
+
+    > **注:**  続行するには、ノードの状態が**オンライン**である必要があります。
+
+### データベースの移行を開始する
+
+1. Azure portal で、**DMS-Migration-Service** リソースに移動します。 [概要] ページで、**[+ 新しい移行]** を選択します。
+
+1. **[新しい移行シナリオの選択]** で、次の詳細を入力します:
+    - **ソース サーバーの種類**:SQL Server
+    - **ターゲット サーバーの種類**:Azure SQL Database
+    - **移行モード:** オフライン
+    - **[選択]** を選択します。
+
+1. **[手順 1: ソースの詳細]** で、次のように構成します:
+    - **ソース SQL Server インスタンスは Azure で追跡されていますか?**:**[いいえ]** を選択します。
+    - **ソース インフラストラクチャの種類:****仮想マシン**を選択します。
+    - **[SQL Server インスタンスの詳細を選択する]** で、次のように入力します:
+        - **[サブスクリプション]**:サブスクリプションを選択します。
+        - **リソース グループ**: リソース グループを選択します。
+        - **場所:** ソース SQL Server の場所を選択します。
+        - **SQL Server インスタンス名:** ソース SQL Server インスタンス名を入力します。
+    - **[次へ: ソース SQL Server に接続します>>]** を選択します。
+
+1. **[手順 2: ソース SQL Server に接続]** で、次の詳細を入力します:
+    - **ソース サーバー名:** ソース SQL Server のホスト名を入力します。
+    - **認証の種類:** SQL 認証
+    - **ユーザー名:** &lt;ソース SQL ユーザー名&gt;
+    - **パスワード:**&lt;ソース SQL パスワード&gt;
+    - **[接続のプロパティ]** で、**[接続の暗号化]** と **[サーバー証明書を信頼する]** のチェック ボックスをオフにします。
+    - **[次へ: 移行するデータベースを選択]** を選択します。
+
+1. **[手順 3: 移行するデータベースを選択]** で、**AdventureWorksLT** データベースを選択します。 **[次へ: ターゲット Azure SQL Database に接続]** を選択します。
+
+1. **[手順 4:ターゲット Azure SQL Database に接続]** で、ターゲット サーバーの詳細を入力します:
+    - **Azure SQL Database サーバー名:**&lt;ターゲット サーバー&gt;.database.windows.net
+    - **認証の種類:** SQL 認証
+    - **ユーザー名:** sqladmin
+    - **パスワード:** &lt;お使いのパスワード&gt;
+    - **[接続]** を選択し、**[次へ: ソースおよびターゲット データベースのマップ]** を選択します。
+
+1. **[手順 5:ソースおよびターゲット データベースのマップ]** で、ソース データベース **AdventureWorksLT** がターゲット データベース **AdventureWorksLT** にマップされていることを確認します。 **[次へ: 移行するデータベース テーブルを選択]** を選択します。
+
+1. **[移行するデータベース テーブルを選択]** ページで、**AdventureWorksLT** セクションを展開します。 ターゲットにスキーマが既に作成されているため、**[不足しているスキーマ]** オプションをオフにします。 次の 4 つのテーブルを選択します:
+     - **[SalesLT].[Address]**
+     - **[SalesLT].[Customer]**
+     - **[SalesLT].[Product]**
+     - **[SalesLT].[ProductCategory]**
+
+    > **注:**  **[ターゲット テーブルは存在しません]** 状態のテーブルでは、**[不足しているスキーマ]** オプションをオンにするか、スキーマを事前に手動で作成する必要があります。
+
+1. **[次へ: データベース移行の概要 >>]** を選択します。
+
+1. **[データベースの移行の概要]** ページで、移行の詳細を確認し、**[移行の開始]** を選択します。
+
+### 移行を監視する
+
+1. [DMS サービス] ページで、移行を選択して進行状況を表示します。
+
+1. 移行の状態が **Succeeded** になるまで待ちます。 ソース データベース名を選択すると、移行の詳細と進行状況を表示できます。
+
+    > **注:**  ネットワーク接続とデータの量によっては、移行が完了するまで数分かかる場合があります。
+
+### データ移行の確認
+
+1. 移行状態が **Succeeded** になったら、SSMS を使用してターゲット Azure SQL Database に接続し、次のクエリを実行してデータ移行が成功したことを確認します:
 
     ```sql
     -- Check row counts for migrated data
@@ -418,7 +477,7 @@ Azure 移行拡張機能の使用を開始する前に、ターゲット デー�
     SELECT 'Address' AS TableName, COUNT(*) AS [RowCount] FROM [SalesLT].[Address];
     ```
 
-また、Azure 移行拡張機能を使い、SQL Server データベースから特定のテーブルを選んで Azure SQL Database に移行する方法についても学びました。 また、移行プロセスを監視する方法も学びます。
+Azure Database Migration Service (DMS) を使用して、SQL Server データベースから Azure SQL Database への特定のテーブルの選択的移行が正常に実行されました。 また、Azure portal を通じて移行プロセスを監視する方法についても学習しました。
 
 ## クリーンアップ
 
