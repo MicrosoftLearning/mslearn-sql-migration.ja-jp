@@ -2,13 +2,11 @@
 lab:
   title: Azure SQL Database 用に geo レプリケーションを構成する
   description: この演習では、Azure SQL Database の geo レプリケーションを有効にして、セカンダリ リージョンへのフェールオーバーを実行する方法を学びます。
+  duration: 30
   level: 300
-  duration: 30 minutes
   islab: true
-  primarytopics:
-    - Azure
-    - Azure SQL Database
-    - Geo-Replication
+  status: released
+  targetDate: '2099-01-01'
 ---
 
 # Azure SQL Database 用に geo レプリケーションを構成する
