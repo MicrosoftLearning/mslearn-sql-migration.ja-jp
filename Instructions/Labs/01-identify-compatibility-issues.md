@@ -2,13 +2,11 @@
 lab:
   title: SQL 移行の互換性の問題を特定する
   description: この演習では、レガシ SQL Server データベースを Azure SQL Database に移行し、互換性の問題を特定します。
+  duration: 20
   level: 300
-  duration: 20 minutes
   islab: true
-  primarytopics:
-    - Azure
-    - Azure SQL Database
-    - SQL Server Migration
+  status: released
+  targetDate: '2099-01-01'
 ---
 
 # SQL 移行の互換性の問題を特定する

@@ -2,14 +2,11 @@
 lab:
   title: SQL Server データベースを Azure 仮想マシン上の SQL Server に移行する
   description: この演習では、Azure 仮想マシンで実行されている SQL Server への SQL Server データベースの移行を、Azure Blob Storage を介したバックアップと復元という方法で行う方法を学習します。
+  duration: 45
   level: 300
-  duration: 45 minutes
   islab: true
-  primarytopics:
-    - Azure
-    - Azure Virtual Machine
-    - Azure Blob Storage
-    - SQL Server Migration
+  status: released
+  targetDate: '2099-01-01'
 ---
 
 # SQL Server データベースを Azure 仮想マシン上の SQL Server に移行する

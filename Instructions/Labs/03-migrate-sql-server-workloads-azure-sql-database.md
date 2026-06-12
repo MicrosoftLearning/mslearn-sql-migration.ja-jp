@@ -2,13 +2,11 @@
 lab:
   title: SQL Server データベースを Azure SQL Database に移行する
   description: この演習では、Azure Database Migration Service (DMS) を使用して、特定のテーブルを SQL Server データベースから Azure SQL Database に移行する方法を学びます。
+  duration: 45
   level: 300
-  duration: 45 minutes
   islab: true
-  primarytopics:
-    - Azure
-    - Azure SQL Database
-    - Azure Database Migration Service
+  status: released
+  targetDate: '2099-01-01'
 ---
 
 # SQL Server データベースを Azure SQL Database に移行する
